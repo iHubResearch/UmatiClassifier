@@ -8,35 +8,20 @@ Created on Nov 10, 2013
 #     pass
 from BoilerPlate import *
 
-## get unique labels as done in sklearn.metrics super annoytng
-def unique_labels(*lists_of_labels):
-    """Extract an ordered array of unique labels"""
-    labels = set().union(*(l.ravel() if hasattr(l, "ravel") else l for l in lists_of_labels))
-    return np.asarray(sorted(labels))
+import json
 
+#Read data
+fin = open('Filterer/Data/annotated_data.json')
+data_str = fin.read()
+fin.close()
+data_json = json.loads(data_str)
+df_data = pd.DataFrame(data_json)
 
+df_data.info()
+df_data.head()
 
-
-
-# Import data
-rawdata = pd.read_csv('20131107_UmatiData.csv')
-
-from pandas.io.parsers import  ExcelFile
-xls = ExcelFile('20131107_UmatiData.xls')
-rawdata = xls.parse('20131107_UmatiData', index_col=None, na_values=['NA'])
-
-#drop na actual text rows
-
-rawdata = rawdata.dropna(subset=['Actual text'])
-
-# Extract features
-text = rawdata['Actual text']
-# floats = []
-# for id, it in enumerate(text.tolist()):
-#     if isinstance(it, float):
-#         floats.append(id)
-# floats
-
+#This extract text at numpy array
+text_np = df_data['post_comments_message']
 
 #Make large word features
 #uses sklearn CountVectoriser/bag of words
@@ -44,58 +29,39 @@ text = rawdata['Actual text']
 from sklearn.feature_extraction.text import CountVectorizer
 vectoriser_training = CountVectorizer(min_df=1,stop_words='english',strip_accents='unicode')
 t = time.time()
-features = vectoriser_training.fit_transform(text) 
+features = vectoriser_training.fit_transform(text_np) 
 print "training text to word vector took", time.time()-t, "seconds"
 features.shape
 #Change from sparse matrix to dense matrix
 #vect_train = features_msg_training.todense() #BIG memory usage 2GB, see how to use the sparse for training
 
 #Create target
-target = rawdata['The text /article can be seen as encouraging the audience to']
+target = df_data['T.F']
 target = target.values
 target.shape
 
-#Create multilable target
-target_ml = [it.replace('animals, ','animals,') for it in target] #Do this so don't split category incorrectly
-target_ml = [ it.split(', ') for it in target_ml]
-target_ml = [ [it.strip() for it in row] for row in target_ml ]
-target_ml[:30]
-[it for it in target_ml if len(it)>1]
-
-
-from sklearn.preprocessing import LabelBinarizer
-
-lb = LabelBinarizer()
-lb.fit(target_ml)
-lb.classes_
-lb.multilabel
-bin_labels = lb.transform(target_ml)
-bin_labels.shape
-# binLabels = [lb.transform(it) for it in target_ml]
-binLabels[0]
-
-type((1,2,3))
 
 #Create classifier
 from sklearn.svm import LinearSVC
-from sklearn.multiclass import OneVsRestClassifier
+
 X= features
-y = target_ml
+y = list(target)
 
 t = time.time()
-clfinner=LinearSVC(C=1,penalty ='l1',dual=False)
-
-clf = OneVsRestClassifier(clfinner)
+clf=LinearSVC(C=1)
 clf.fit(X,y)
-clf.multilabel_
 print "training took", time.time()-t, "seconds"
 
 #Check performance
 training_predicted = clf.predict(X)
-
 training_predicted
 
 from sklearn import metrics
+
+type(y)
+type(training_predicted)
+y.shape
+training_predicted.shape
 
 cm_training = metrics.confusion_matrix(y,training_predicted)
 print "Confusion Matrix on training data"
@@ -103,12 +69,38 @@ print cm_training
 
 from sklearn import cross_validation
 
-y[(1,4)]
+fin = open('Filterer/Data/allcomments.json')
+allcomments = fin.read()
+fin.close()
+allcomments_str = allcomments
+contrl_char = allcomments_str[1864174] #\x03 Ctrl character
+allcomments_str =allcomments_str.replace(contrl_char,"")
+contrl_char = allcomments_str[17885956] #\x0e
+allcomments_str =allcomments_str.replace(contrl_char,"")
 
-[ y[it] for it in [1,4] ]
+#Have to remove weird characters above - control and soemthing else
+allcomments_uni = allcomments_str.decode('utf-8')
+df_allcomments = pd.DataFrame(json.loads(allcomments_uni))
+df_allcomments.info()
+
+text_allcomments = df_allcomments['post_comments_message']
+X_full = vectoriser_training.transform(text_allcomments)
+X_full.shape
+#Check performance
+training_predicted = clf.predict(X_full)
+
+
+y_full_true = [ 'FALSE' for i in range(0,len(training_predicted))]
+training_predicted.shape
+len(y_full_true)
+cm_training = metrics.confusion_matrix(y_full_true,training_predicted)
+print "Confusion Matrix on training data"
+print cm_training
+
 
 Xcsr = X.tocsr()
 row = Xcsr[0].todense()
+row
 skf = cross_validation.StratifiedKFold(y=target, n_folds=3)
 for train_index, test_index in skf:
     print("TRAIN:", train_index, "TEST:", test_index)
@@ -151,19 +143,3 @@ for train_index, test_index in skf:
 
 
  
-df = pd.DataFrame(cms[0], index= labels[0], columns=labels[0])
-
-cms[0]
-
-df.to_csv('output.csv')
-
-this_predicted = clfs[1].predict(X)
-cm_training = metrics.confusion_matrix(y,this_predicted)
-print "Confusion Matrix on training data"
-print cm_training.shape
-
-
-
-df=pd.DataFrame(target)
-df['predicted']=this_predicted
-df.to_csv('output.csv')
