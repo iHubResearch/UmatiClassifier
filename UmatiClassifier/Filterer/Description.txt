@@ -1,0 +1,20 @@
+The filter will
+
+- get data from umati database at ihub
+	-Both auto collected
+	-and manual
+
+- get annotations
+	-combine these in data with text and annotations:
+		-all annotations for original data will be true
+
+- label annotations
+	- use sklearn svm with sparse matrices
+	- check 3 fold auc
+
+- Apply trained to full dataset
+	- check confusion matrix
+	- get new trained set and iterate.
+
+
+
